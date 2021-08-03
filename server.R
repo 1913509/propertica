@@ -100,7 +100,7 @@ server <- function(input, output, session) {
             setView(-3, 54.3, zoom = 5)
     })
     
-    observeEvent(input$geo, {
+    observeEvent(input$geocode, {
         
         # Progress Bar
         withProgress(
