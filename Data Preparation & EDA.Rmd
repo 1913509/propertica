@@ -1,0 +1,307 @@
+---
+title: "PROPERTICA - Analysis - Data Preparation & EDA"
+author: "Rahim Bux"
+date: "7/20/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r}
+## DATA PREPARATION
+#Import the dataset and omitting the unnecessary columns.
+dataset <- read.csv("ppd_data.csv", header = TRUE)
+
+# To see the structure of the dataset
+str(dataset)
+```
+```{r}
+hist(dataset$price)
+```
+
+```{r}
+# Removing weak variables
+dataset$unique_id <- NULL
+dataset$saon <- NULL
+dataset$paon <- NULL
+dataset$street <- NULL
+dataset$locality <- NULL
+dataset$town <- NULL
+dataset$district <- NULL
+dataset$county <- NULL
+dataset$transaction_category <- NULL
+dataset$linked_data_uri <- NULL
+str(dataset)
+```
+
+```{r}
+# Libraries Required
+library(stringr)
+library(dplyr)
+#To select the town postcodes by omitting the last 3 characters from the postcode.
+dataset$postcode <- str_sub(dataset$postcode, end=-5)
+
+#To omit the month and date of transaction from the deed_date column
+dataset$deed_date <- str_sub(dataset$deed_date, end=-7)
+
+#Convert the deed_date to numeric
+dataset$deed_date <- as.numeric(dataset$deed_date)
+
+#Convert new_build to numeric for N =0, Y =1
+dataset$new_build <- as.factor(dataset$new_build)
+dataset$new_build <- as.numeric(dataset$new_build) -1
+
+#Convert estate_type to numeric for L=1, F=0
+dataset$estate_type <- as.factor(dataset$estate_type)
+dataset$estate_type <- as.numeric(dataset$estate_type) -1
+
+#Convert property_type to numeric values for D=1, F=2, S=3, T=4, O=5
+dataset$property_type <- as.factor(dataset$property_type)
+dataset$property_type <- as.numeric(dataset$property_type)
+```
+
+```{r}
+#Filter dataset by selecting only East London postcodes.
+datasetE <- filter(dataset, postcode == "E1"| postcode ==  'E2'| postcode == 'E3'| postcode == 'E4'| postcode == 'E5'| postcode == 'E6'| postcode == 'E7'| postcode == 'E8'| postcode == 'E9'| postcode == 'E10'| postcode == 'E11'| postcode == 'E12'| postcode == 'E13'| postcode == 'E14'| postcode =='E15'| postcode == 'E16'| postcode == 'E17'| postcode == 'E18'| postcode == 'E19'| postcode == 'E20')
+
+#Convert postcode to numeric values for E1=1, E10=2 .....
+datasetE$postcode <- as.factor(datasetE$postcode)
+datasetE$postcode <- as.numeric(datasetE$postcode)
+```
+
+```{r}
+#Rename the column name of datasetR
+names(datasetE)[names(datasetE) == 'price_paid'] <- 'price'
+names(datasetE)[names(datasetE) == 'deed_date'] <- 'year'
+names(datasetE)[names(datasetE) == 'new_build'] <- 'build'
+str(datasetE)
+```
+
+```{r}
+#Removing non informative observations
+datasetE[datasetE == ""] <- NA
+sum(!complete.cases(datasetE))
+
+#new datasetR have been prepared.
+datasetE <- datasetE[complete.cases(datasetE),]
+```
+
+# Looking at Outliers
+## Visualizing Outliers
+```{r}
+boxplot(datasetE)$out
+
+## Finding Outliers – Statistical Methods
+Q <- quantile(datasetE$price, probs=c(.25, .75), na.rm = FALSE)
+iqr <- IQR(datasetE$price)
+up <-  Q[2]+1.5*iqr # Upper Range 
+low<- Q[1]-1.5*iqr # Lower Range
+
+## Eliminating Outliers
+eliminated<- subset(datasetE, datasetE$price > (Q[1] - 1.5*iqr) & datasetE$price < (Q[2]+1.5*iqr))
+# Saving eliminated dataset to csv file
+write.csv(eliminated, 'data.csv', row.names = FALSE)
+data<- read.csv("data.csv")
+# Check the outliers in news dataset
+boxplot(data)$out
+```
+
+# Experiments
+#Splitting data
+```{r}
+library(caTools)
+
+set.seed(123)
+split = sample.split(data$price, SplitRatio = 0.8)
+train_set = subset(data, split == TRUE)
+test_set = subset(data, split == FALSE)
+
+#Write new files for the train and test sets
+write.csv(train_set, "y_train.csv", row.names = FALSE)
+write.csv(test_set, "y_test.csv", row.names = FALSE)
+```
+
+# Experiment for Regression Model
+```{r}
+#Multilinear regression
+multi = lm(formula = price ~ ., data = train_set)
+
+#Predicting the test values
+y_pred_m = predict(multi, newdata = test_set)
+
+#Performance metrics
+#install.packages('Metrics')
+library(Metrics)
+
+mae_m = mae(test_set[[1]], y_pred_m)
+rmse_m = rmse(test_set[[1]], y_pred_m)
+mae_m
+rmse_m
+```
+
+
+
+```{r}
+#Testing Single Prediction value using Multilinear Regression Model
+test_pred <- test_set
+
+values = data.frame(price = NA,
+                    year = as.numeric ('2020'),
+                    postcode = as.numeric ('1'),
+                    property_type = as.numeric ('4'), 
+                    build = as.numeric ('1'), 
+                    estate_type = as.numeric ('2'))
+
+test_pred <- rbind(test_pred, values)
+prediction = predict(multi, newdata = test_pred[nrow(test_pred),-1])
+prediction
+```
+
+
+## SVR regression---------------------------------
+```{r}
+## Fit SVR model and visualize using scatter plot
+#Install Package
+install.packages("e1071")
+#Load Library
+library(e1071)
+
+#Regression with SVM
+svm <- svm(price~ .,train_set)
+
+#Predict using SVM regression
+y_pred_svm <- predict(svm, test_set)
+
+mae_svm = mae(test_set[[1]], y_pred_svm)
+rmse_svm = rmse(test_set[[1]], y_pred_svm)
+mae_svm
+rmse_svm
+print(svm)
+```
+
+
+```{r}
+#Testing Single Prediction value using SVM Regression Model
+test_pred<- test_set
+
+values = data.frame(price = NA,
+                    year = as.numeric ('2020'),
+                    postcode = as.numeric ('1'),
+                    property_type = as.numeric ('4'), 
+                    build = as.numeric ('1'), 
+                    estate_type = as.numeric ('2'))
+
+test_pred <- rbind(test_pred,values)
+
+#prediction <- round(predict(svm, newdata = test_pred[nrow(test_pred),]), digits = 0)
+
+Predicit <- predict(svm, newdata = test_pred[nrow(test_pred),-1])
+prediction
+```
+
+
+
+```{r}
+pred = predict(svm, test_set)
+ 
+x = 1:length(test_set$price)
+plot(x, test_set$price, pch=18, col="red")
+lines(x, pred, lwd="1", col="blue")
+```
+#Saving the model
+```{r}
+saveRDS(svm, file = "./rfmodel.rds")
+```
+
+
+#Random forest
+```{r}
+library(randomForest)
+set.seed(123)
+rf = randomForest(formula = price ~ ., data = train_set, mtyr = 1,
+                  ntree = 500)
+
+#Predicting the test values
+y_pred_rf = predict(rf, newdata = test_set)
+
+#Performance metrics
+mae_rf = mae(test_set[[1]], y_pred_rf)
+rmse_rf = rmse(test_set[[1]], y_pred_rf)
+mae_rf
+rmse_rf
+```
+
+
+
+```{r}
+#Testing Single Prediction value using Multilinear Regression Model
+test_pred<- test_set
+
+values = data.frame(price = NA,
+                    year = '2019',
+                    postcode = '1',
+                    property_type = '4', 
+                    build = '1', 
+                    estate_type = '2')
+
+test_pred <- rbind(test_pred,values)
+prediction <- predict(rf, newdata = test_pred[nrow(test_pred),-1])
+prediction
+```
+
+#Saving the model
+```{r}
+saveRDS(rf, file = "./rfmodel.rds")
+```
+
+# School dataset
+```{r}
+schools <- read.csv('Lschools.csv')
+str(schools)
+```
+```{r}
+# Shorten postecode and Renaming coordinations
+schools$POSTCODE <- str_sub(schools$POSTCODE, end=-5)
+names(schools)[names(schools) == 'x'] <- 'long'
+names(schools)[names(schools) == 'y'] <- 'lat'
+write.csv(schools, 'Lschools.csv', row.names = FALSE)
+```
+
+
+
+```{r}
+d <- data[,2:6]
+d %>%
+  gather() %>%
+ggplot(aes(value)) +
+  facet_wrap(~ key, scales ='free') +
+  geom_histogram(binwidth = 0.5, color = 'black') +
+  scale_x_continuous(name = "values")+
+  ggtitle("Distribution of Variables")+
+  theme_bw ()
+```
+
+```{r}
+# Summary of Data
+summary(data)
+```
+
+```{r}
+hchart(cor(data))
+```
+```{r}
+library(corrplot)
+library(RColorBrewer)
+M <-cor(data)
+corrplot(M, type="upper", order="hclust",
+         col=brewer.pal(n=8, name="RdYlBu"))
+
+```
+
+
+```{r}
+data %>% 
+  count(price, year) %>% 
+  hchart('bar', hcaes(x = 'price', y = 'n', group = "year"))
+```
+

@@ -1,0 +1,89 @@
+---
+title: "PROPERTICA - London Property Prediction Model"
+author: "Rahim Bux"
+date: "7/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Required Libraries
+```{r}
+library(randomForest)
+library(rpart)
+library(caret)
+library(e1071)
+library(Metrics)
+library(caTools)
+```
+
+# Supervised Learning Experiments
+## Splitting data
+```{r}
+library(caTools)
+data <- read.csv("data.csv")
+set.seed(123)
+split = sample.split(data$price, SplitRatio = 0.8)
+train_set = subset(data, split == TRUE)
+test_set = subset(data, split == FALSE)
+
+#Write new files for the train and test sets
+write.csv(train_set, "y_train.csv", row.names = FALSE)
+write.csv(test_set, "y_test.csv", row.names = FALSE)
+```
+
+## Multilinear Regression Model
+```{r}
+# Multilinear regression
+multi = lm(formula = price ~ ., data = train_set)
+
+#Predicting the test values
+y_pred_m = predict(multi, newdata = test_set)
+
+
+#Performance metrics
+mae_m = mae(test_set[[1]], y_pred_m)
+rmse_m = rmse(test_set[[1]], y_pred_m)
+mae_m
+rmse_m
+print(multi)
+plot(multi)
+saveRDS(multi, file = "./multimodel.rds")
+```
+
+## SVM regression
+```{r}
+svm <- svm(formula = price~ .,data = train_set, type = "eps-regression", cost = 1, gamma = 0.9)
+
+#Predict using SVM regression
+y_pred_svm <- predict(svm, test_set)
+
+#Performance metrics
+mae_svm = mae(test_set[[1]], y_pred_svm)
+rmse_svm = rmse(test_set[[1]], y_pred_svm)
+mae_svm
+rmse_svm
+svm
+saveRDS(svm, file = "./svmmodel.rds")
+```
+
+
+
+## Random forest
+```{r}
+set.seed(123)
+rf = randomForest(formula = price ~ ., data = train_set, ntree = 100)
+
+#Predicting the test values
+y_pred_rf = predict(rf, newdata = test_set)
+
+#Performance metrics
+mae_rf = mae(test_set[[1]], y_pred_rf)
+rmse_rf = rmse(test_set[[1]], y_pred_rf)
+mae_rf
+rmse_rf
+plot(rf)
+rf
+```
