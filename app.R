@@ -49,21 +49,21 @@ train_set <- read.csv('y_train.csv')
 test_set <- read.csv('y_test.csv')
 
 
-
-levels(test_set$postcode) <- levels(train_set$postcode)
 levels(test_set$estate_type) <- levels(train_set$estate_type)
 levels(test_set$year) <- levels(train_set$year)
 levels(test_set$property_type) <- levels(train_set$property_type)
 levels(test_set$build) <- levels(train_set$build)
+levels(test_set$postcode) <- levels(train_set$postcode)
+
 
 #Importing model
-model <- readRDS(file = "svmmodel.rds")
+model <- readRDS(file = "rfmodel.rds")
 
 
 # To calculate mean absolute error (MAE) and Root Mean Square Error (RMSE)
 y_pred = predict(model, newdata = test_set)
-mae_svm = mae(test_set[[1]], y_pred)
-rmse_svm = rmse(test_set[[1]], y_pred)
+mae_rf = mae(test_set[[1]], y_pred)
+rmse_rf = rmse(test_set[[1]], y_pred)
 
 #Opencage Maps & ZOOPLA API Key
 Sys.setenv(OPENCAGE_KEY = "10f3bcc701d54770b5a7756c51cd3d97")
@@ -108,9 +108,10 @@ ui <- fluidPage(
                                           
                                           h2("Input Preferences"),
                                          
-                                          selectInput("p_year","Select time period:", choices = 2019:as.numeric(format(Sys.Date(),"%Y"))),
-                                          selectInput("postcode", "Select a Postcode from E1 to E20", c('E1'='1','E2'='13', 'E3'='14', 'E4'='15', 'E5'='16', 'E6'='17', 'E7'='18', 'E8'='19','E9'='20', 'E10'='2','E11'='3', 'E12'='4', 'E13'='5', 'E14'='6', 'E15'='7', 'E16'='8', 'E17'='9', 'E18'='10', 'E19'='11', 'E20'='12')),
-                                          selectInput('p_property_type', 'Property Type', c('Detached' = '1', 'Flats/Maisonettes'= '2',  'Semi-Detached' = '3',  'Others' = '4', 'Terraced' = '5')),
+                                          selectInput("p_year","Select time period:", choices = 2017:as.numeric(format(Sys.Date(),"%Y"))),
+                                          selectInput("postcode", "Select a Postcode", 
+                                                      c('E1'='1','E2'='13', 'E3'='14', 'E4'='15', 'E5'='16', 'E6'='17', 'E7'='18', 'E8'='19','E9'='20', 'E10'='2','E11'='3', 'E12'='4', 'E13'='5', 'E14'='6', 'E15'='7', 'E16'='8', 'E17'='9', 'E18'='10', 'E20'='11')),
+                                          selectInput('p_property_type', 'Property Type', c('Detached' = '1', 'Flats'= '2',  'Semi-Detached' = '3',  'Others' = '4', 'Terraced' = '5')),
                                           selectInput('p_build', 'Build', c('Old Build' = '0', 'New Build' = '1')),
                                           selectInput('p_estate_type', 'Estate Type', c('Leasehold' = '1', 'Freehold' = '0')),
                                          
@@ -124,7 +125,7 @@ ui <- fluidPage(
                             draggable = FALSE, height = "auto",
                             tags$h2(textOutput("value")),
                             tags$p(textOutput('range'),tags$p("Price Range"),
-                                   tags$p(helpText(sprintf('The prediction is based on a SVR supervised machine learning model. Furthermore, the models deliver a mean absolute error (MAE) of %s total number of Price, and a root mean squared error (RMSE) of %s total number of Price', round(mae_svm, digits = 0), round(rmse_svm, digits = 0))))),
+                                   tags$p(helpText(sprintf('The prediction is based on a RF supervised machine learning model. Furthermore, the models deliver a mean absolute error (MAE) of %s total number of Price, and a root mean squared error (RMSE) of %s total number of Price', round(mae_rf, digits = 0), round(rmse_rf, digits = 0))))),
                                     ),
                         absolutePanel
                         (bottom = 300, left = 300, width = 460, fixed=FALSE, draggable = FALSE, height = 100,
@@ -151,8 +152,8 @@ ui <- fluidPage(
                                           h2("Search Area"),
                                           
                                           selectInput("geoloc", "Select a Postcode from E1 to E20:", c('E1', 'E2', 'E3', 'E4', 'E5' , 'E6', 'E7', 'E8', 'E9', 'E10', 'E11', 'E12', 'E13' , 'E14' , 'E15', 'E16', 'E17' , 'E18', 'E19', 'E20')),
-                                          #checkboxInput("my_location", "Or use your current location?"),
-                                          
+                                        
+                                        
                                           actionButton("submit", "ANALYSIS", class = "btn-primary", icon = icon('fas fa-chart-bar')),
         
                                       
@@ -269,7 +270,7 @@ server <- function(input, output, session) {
         
         #Single preiction using the  model
         a$result <-  round(predict(model, newdata = test_pred[nrow(test_pred),]), digits = 0)
-    })
+    
     
     
     output$value <- renderText({
@@ -284,17 +285,10 @@ server <- function(input, output, session) {
         #Display the range of prediction value using the MAE value
         input$go
         isolate(sprintf('(%s) - (%s)', 
-                        round(a$result - mae_svm, digits = 0), 
-                        round(a$result + mae_svm, digits = 0)))
-                                }) 
-    
-    
-  #  output$chart <- renderHighchart({
-  #      data %>% 
-   #         count(price, postcode) %>% 
-  #          hchart('column', hcaes(x = 'price', y = 'n', group = "postcode"))
-#    })
-   
+                        round(a$result - mae_rf, digits = 0), 
+                        round(a$result + mae_rf, digits = 0)))
+                                })
+    })
     
     ## Analysis of the Area
     output$areamap <- renderLeaflet({
